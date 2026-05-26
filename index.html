@@ -1,262 +1,246 @@
 <!DOCTYPE html>
 <html lang="en">
 <!--
-  ============================================================
-   Phoenix-SAKHI — Admin Web Dashboard (Final Version)
-   Stack  : HTML · CSS · Vanilla JS · Leaflet.js · Supabase JS
-   Reads  : Supabase JS SDK (realtime)
-   Writes : Render Backend (resolve / delete)
-   Extra  : Direct Wearable BT + Laptop GPS fallback
-  ============================================================
+  Phoenix-SAKHI Admin Dashboard v2.0
+  NEW: GPS status panel, Audio recording player, live audio level meter
 -->
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Phoenix-SAKHI — Admin Dashboard</title>
+<title>Phoenix-SAKHI — Admin v2</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:      #0d0d1a;
-  --card:    #13132b;
-  --panel:   #1a1a35;
-  --orange:  #ff6b00;
-  --orange2: #e65100;
-  --cyan:    #00e5ff;
-  --red:     #ff1744;
-  --green:   #00e676;
-  --yellow:  #ffea00;
-  --blue:    #448aff;
-  --text:    #e8eaf6;
-  --muted:   #7986cb;
-  --border:  #2d2d5e;
-  --radius:  12px;
-  --shadow:  0 4px 24px rgba(0,0,0,.5);
+  --bg:#0d0d1a;--card:#13132b;--panel:#1a1a35;
+  --orange:#ff6b00;--cyan:#00e5ff;--red:#ff1744;
+  --green:#00e676;--yellow:#ffea00;--blue:#448aff;
+  --purple:#aa44ff;--text:#e8eaf6;--muted:#7986cb;
+  --border:#2d2d5e;--radius:12px;--shadow:0 4px 24px rgba(0,0,0,.5)
 }
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;overflow-x:hidden}
-
-/* ── Navbar ─────────────────────────────────────────────── */
-.navbar{background:var(--card);border-bottom:1px solid var(--border);padding:0 24px;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000;box-shadow:var(--shadow)}
-.brand{font-size:20px;font-weight:800;color:var(--orange);display:flex;align-items:center;gap:8px}
+.navbar{background:var(--card);border-bottom:1px solid var(--border);padding:0 20px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1000;box-shadow:var(--shadow)}
+.brand{font-size:19px;font-weight:800;color:var(--orange);display:flex;align-items:center;gap:8px}
 .brand span{color:var(--cyan)}
-.nav-right{display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted)}
-#liveTime{color:var(--text);font-weight:700}
-.dot{width:8px;height:8px;background:var(--green);border-radius:50%;display:inline-block;animation:blink 1.4s infinite}
+.nav-right{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.dot{width:7px;height:7px;background:var(--green);border-radius:50%;display:inline-block;animation:blink 1.4s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-.pill{display:flex;align-items:center;gap:5px;font-size:11px;padding:3px 10px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
-.pill .pdot{width:7px;height:7px;border-radius:50%;background:var(--muted)}
-.pill.ok{border-color:rgba(0,230,118,.3);color:var(--green)}.pill.ok .pdot{background:var(--green)}
-.pill.err{border-color:rgba(255,23,68,.3);color:var(--red)}.pill.err .pdot{background:var(--red)}
+.pill{display:flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--border);color:var(--muted)}
+.pill .pd{width:6px;height:6px;border-radius:50%;background:var(--muted)}
+.pill.ok{border-color:rgba(0,230,118,.3);color:var(--green)}.pill.ok .pd{background:var(--green)}
+.pill.err{border-color:rgba(255,23,68,.3);color:var(--red)}.pill.err .pd{background:var(--red)}
+.pill.rec{border-color:rgba(170,68,255,.3);color:var(--purple)}.pill.rec .pd{background:var(--purple);animation:blink .8s infinite}
 
-/* ── Banners ─────────────────────────────────────────────── */
-#connBanner{display:none;background:rgba(255,23,68,.15);border:1px solid var(--red);color:var(--red);padding:10px 20px;text-align:center;font-size:13px;font-weight:600}
-#renderBanner{display:none;background:rgba(255,107,0,.12);border:1px solid rgba(255,107,0,.4);color:var(--orange);padding:8px 20px;text-align:center;font-size:12px}
+.layout{display:grid;grid-template-columns:330px 1fr;gap:16px;padding:16px;max-width:1600px;margin:0 auto}
+.stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center}
+.stat-val{font-size:26px;font-weight:800}
+.stat-lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:3px}
+.c-o .stat-val{color:var(--orange)}.c-r .stat-val{color:var(--red)}.c-g .stat-val{color:var(--green)}
+.c-c .stat-val{color:var(--cyan)}.c-y .stat-val{color:var(--yellow)}.c-p .stat-val{color:var(--purple)}
 
-/* ── Layout ─────────────────────────────────────────────── */
-.layout{display:grid;grid-template-columns:340px 1fr;gap:20px;padding:20px;max-width:1600px;margin:0 auto}
-
-/* ── Stats ──────────────────────────────────────────────── */
-.stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(6,1fr);gap:12px}
-.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px;text-align:center}
-.stat-val{font-size:28px;font-weight:800}
-.stat-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
-.c-orange .stat-val{color:var(--orange)}
-.c-red    .stat-val{color:var(--red)}
-.c-green  .stat-val{color:var(--green)}
-.c-cyan   .stat-val{color:var(--cyan)}
-.c-yellow .stat-val{color:var(--yellow)}
-.c-blue   .stat-val{color:var(--blue)}
-
-/* ── Card ───────────────────────────────────────────────── */
 .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
-.card-hdr{padding:14px 16px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-.card-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--orange)}
-.btn-sm{background:none;border:1px solid var(--border);border-radius:6px;color:var(--cyan);padding:4px 10px;font-size:12px;cursor:pointer;transition:background .2s}
+.card-hdr{padding:12px 14px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--orange)}
+.btn-sm{background:none;border:1px solid var(--border);border-radius:6px;color:var(--cyan);padding:3px 9px;font-size:11px;cursor:pointer}
 .btn-sm:hover{background:var(--panel)}
 
-/* ── Alert List ─────────────────────────────────────────── */
-.left-panel{display:flex;flex-direction:column;gap:16px}
-.alert-scroll{max-height:400px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
-.a-item{padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;border-left:3px solid transparent}
+.left-panel,.right-panel{display:flex;flex-direction:column;gap:14px}
+.alert-scroll{max-height:380px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.a-item{padding:10px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;border-left:3px solid transparent}
 .a-item:hover{background:var(--panel)}
 .a-item.sel{background:rgba(255,107,0,.08);border-left-color:var(--orange)}
-.a-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
-.a-name{font-weight:700;font-size:14px}
-.badge{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px}
-.b-btn {background:rgba(255,23,68,.18); color:var(--red)}
-.b-fall{background:rgba(255,234,0,.15); color:var(--yellow)}
-.b-act {background:rgba(0,230,118,.15); color:var(--green)}
-.b-res {background:rgba(121,134,203,.15);color:var(--muted)}
-.a-time{font-size:11px;color:var(--muted);margin-top:2px}
-.a-loc {font-size:11px;color:var(--cyan)}
-.empty{text-align:center;padding:30px;color:var(--muted);font-size:13px}
+.a-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;gap:4px;flex-wrap:wrap}
+.a-name{font-weight:700;font-size:13px}
+.badge{font-size:10px;font-weight:800;padding:2px 7px;border-radius:20px}
+.b-btn{background:rgba(255,23,68,.18);color:var(--red)}
+.b-fall{background:rgba(255,234,0,.15);color:var(--yellow)}
+.b-act{background:rgba(0,230,118,.15);color:var(--green)}
+.b-res{background:rgba(121,134,203,.15);color:var(--muted)}
+.b-audio{background:rgba(170,68,255,.18);color:var(--purple)}
+.a-time{font-size:11px;color:var(--muted);margin-top:1px}
+.a-loc{font-size:11px;color:var(--cyan)}
+.empty{text-align:center;padding:28px;color:var(--muted);font-size:13px}
 
-/* ── Detail ─────────────────────────────────────────────── */
-.detail-body{padding:16px}
-.d-row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px}
+.detail-body{padding:14px}
+.d-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
 .d-row:last-child{border-bottom:none}
 .d-key{color:var(--muted)}
 .d-val{color:var(--text);font-weight:600;text-align:right;max-width:200px}
 .action-row{display:flex;gap:8px;margin-top:12px}
-.resolve-btn{flex:1;padding:10px;background:var(--green);border:none;border-radius:8px;color:#0d0d1a;font-weight:800;font-size:13px;cursor:pointer;transition:opacity .2s}
-.resolve-btn:hover{opacity:.85}
-.resolve-btn:disabled{background:var(--border);color:var(--muted);cursor:default}
-.delete-btn{padding:10px 14px;background:rgba(255,23,68,.15);border:1px solid rgba(255,23,68,.4);border-radius:8px;color:var(--red);font-weight:800;font-size:13px;cursor:pointer;transition:background .2s}
-.delete-btn:hover{background:rgba(255,23,68,.25)}
+.resolve-btn{flex:1;padding:9px;background:var(--green);border:none;border-radius:8px;color:#0d0d1a;font-weight:800;font-size:13px;cursor:pointer}
+.resolve-btn:disabled{background:var(--border);color:var(--muted)}
+.delete-btn{padding:9px 13px;background:rgba(255,23,68,.15);border:1px solid rgba(255,23,68,.4);border-radius:8px;color:var(--red);font-weight:800;font-size:13px;cursor:pointer}
 .osm-link{display:block;text-align:center;margin-top:8px;color:var(--cyan);font-size:13px;text-decoration:none}
-.osm-link:hover{text-decoration:underline}
 
-/* ── Right Panel ────────────────────────────────────────── */
-.right-panel{display:flex;flex-direction:column;gap:16px}
-#map{height:380px;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+/* Audio player */
+.audio-section{margin-top:12px;padding:12px;background:rgba(170,68,255,.08);border:1px solid rgba(170,68,255,.3);border-radius:8px}
+.audio-title{font-size:11px;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}
+.audio-player{width:100%;height:36px;border-radius:6px;accent-color:var(--purple)}
+.audio-meter{height:8px;background:var(--panel);border-radius:4px;overflow:hidden;margin-top:6px}
+.audio-bar{height:100%;background:var(--purple);width:0%;transition:width .1s;border-radius:4px}
+.no-audio{font-size:12px;color:var(--muted);font-style:italic;text-align:center;padding:8px}
 
-/* ── CCTV ───────────────────────────────────────────────── */
+/* GPS live panel */
+.gps-panel{background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.2);border-radius:8px;padding:10px;margin-bottom:10px}
+.gps-title{font-size:10px;color:var(--green);font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.gps-coords{font-size:13px;color:var(--green);margin-top:4px;font-family:monospace}
+
+#map{height:340px;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden}
+
+/* CCTV */
 .cctv-wrap{position:relative;background:#000;overflow:hidden}
-.cctv-wrap video{width:100%;display:block;min-height:180px;object-fit:cover}
-.cctv-hud{position:absolute;top:0;left:0;right:0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent);pointer-events:none}
-.rec-label{font-size:12px;font-weight:800;color:var(--red);letter-spacing:.1em;display:flex;align-items:center;gap:6px}
-.cctv-ts{font-size:12px;color:rgba(255,255,255,.7)}
-.cctv-off{display:flex;align-items:center;justify-content:center;min-height:140px;color:var(--muted);font-size:14px;background:#000}
-.cctv-btns{display:flex;gap:8px;padding:10px;background:var(--card);border-top:1px solid var(--border)}
-.cctv-btn{flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:12px;cursor:pointer;transition:background .2s}
+.cctv-wrap video{width:100%;display:block;min-height:160px;object-fit:cover}
+.cctv-hud{position:absolute;top:0;left:0;right:0;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.7),transparent);pointer-events:none}
+.rec-label{font-size:11px;font-weight:800;color:var(--red);letter-spacing:.1em;display:flex;align-items:center;gap:5px}
+.cctv-off{display:flex;align-items:center;justify-content:center;min-height:120px;color:var(--muted);font-size:13px}
+.cctv-btns{display:flex;gap:6px;padding:8px;background:var(--card);border-top:1px solid var(--border)}
+.cctv-btn{flex:1;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:11px;cursor:pointer}
 .cctv-btn:hover{background:var(--border)}
-#btnStop{display:none}
 
-/* ── Direct Wearable ────────────────────────────────────── */
-.dw-row{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+/* Direct wearable */
+.dw-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:0.5px solid var(--border);font-size:12px}
 .dw-row:last-child{border-bottom:none}
-.dw-key{color:var(--muted);font-size:12px}
-.dw-val{color:var(--text);font-weight:600;font-size:12px;text-align:right;max-width:200px;word-break:break-all}
-.dw-btns{display:flex;gap:8px;margin-top:12px}
-.dw-btn{flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:12px;cursor:pointer;transition:background .2s}
+.dw-key{color:var(--muted)}
+.dw-val{color:var(--text);font-weight:500;font-size:12px;text-align:right;max-width:200px;word-break:break-all}
+.dw-btns{display:flex;gap:6px;margin-top:10px}
+.dw-btn{flex:1;padding:7px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:11px;cursor:pointer}
 .dw-btn:hover{background:var(--border)}
-.dw-sos{width:100%;margin-top:10px;padding:11px;background:var(--red);border:none;border-radius:8px;color:#fff;font-weight:800;font-size:14px;cursor:pointer}
-.dw-sos:hover{opacity:.88}
-.dw-log{margin-top:10px;background:#0a0a18;border-radius:8px;padding:10px;font-size:11px;color:var(--muted);font-family:monospace;min-height:52px;max-height:110px;overflow-y:auto;line-height:1.5}
+.dw-sos{width:100%;margin-top:8px;padding:10px;background:var(--red);border:none;border-radius:8px;color:#fff;font-weight:800;font-size:13px;cursor:pointer}
+.dw-log{margin-top:8px;background:#0a0a18;border-radius:8px;padding:8px;font-size:10px;color:var(--muted);font-family:monospace;min-height:48px;max-height:90px;overflow-y:auto;line-height:1.5}
 
-/* ── Toast ──────────────────────────────────────────────── */
-#toast{position:fixed;bottom:24px;right:24px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:12px 20px;border-radius:8px;font-size:14px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
+/* Live audio level meter (from direct BT) */
+.live-audio{background:rgba(170,68,255,.06);border:1px solid rgba(170,68,255,.2);border-radius:8px;padding:10px;margin-top:8px}
+.live-audio-title{font-size:10px;color:var(--purple);font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.level-bar-wrap{height:20px;background:var(--panel);border-radius:10px;overflow:hidden}
+.level-bar{height:100%;background:linear-gradient(90deg,var(--purple),#ff44aa);width:0%;transition:width .1s;border-radius:10px}
+.level-label{font-size:10px;color:var(--muted);margin-top:3px;text-align:right}
+
+#toast{position:fixed;bottom:20px;right:20px;background:var(--panel);border:1px solid var(--border);color:var(--text);padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none}
 #toast.show{opacity:1}
-
-/* ── Responsive ─────────────────────────────────────────── */
 @media(max-width:900px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:500px){.stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════════════════════
-     CONFIGURATION — already filled in from your project
-     ══════════════════════════════════════════════════════════ -->
 <script>
-  const SUPABASE_URL      = "https://vadpyotingfkwlmocnsr.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhZHB5b3Rpbmdma3dsbW9jbnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjUwNDAsImV4cCI6MjA5MTg0MTA0MH0.gDkpEJ3Hrf_k8696LbR8L_lGB0xyaHOjOVJ_GxcbrLc";
-  const BACKEND_URL       = "https://safesphere-backend-0ym4.onrender.com";
-  const DIRECT_USER_ID    = "user001";
+const SUPABASE_URL      = "https://vadpyotingfkwlmocnsr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZhZHB5b3Rpbmdma3dsbW9jbnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNjUwNDAsImV4cCI6MjA5MTg0MTA0MH0.gDkpEJ3Hrf_k8696LbR8L_lGB0xyaHOjOVJ_GxcbrLc";
+const BACKEND_URL       = "https://safesphere-backend-0ym4.onrender.com";
+const DIRECT_USER_ID    = "user001";
 </script>
-
-<div id="connBanner">⚠ Cannot connect to Supabase. Check SUPABASE_URL and ANON_KEY.</div>
-<div id="renderBanner">⚠ Render backend is waking up (free tier). Resolve/delete will retry shortly…</div>
 
 <!-- Navbar -->
 <nav class="navbar">
-  <div class="brand">🔥 Phoenix<span>-SAKHI</span></div>
+  <div class="brand">🔥 Phoenix<span>-SAKHI</span> <span style="font-size:11px;color:var(--muted);font-weight:400">v2.0</span></div>
   <div class="nav-right">
-    <div class="pill" id="backendPill"><span class="pdot"></span><span id="backendStatus">Backend…</span></div>
-    <div class="pill" id="wearablePill"><span class="pdot"></span><span id="wearablePillText">Wearable offline</span></div>
+    <div class="pill" id="backendPill"><span class="pd"></span><span id="backendStatus">Backend...</span></div>
+    <div class="pill" id="wearablePill"><span class="pd"></span><span id="wearablePillTxt">Wearable offline</span></div>
+    <div class="pill" id="audioPill" style="display:none"><span class="pd" style="background:var(--purple);animation:blink .8s infinite"></span><span>Recording</span></div>
     <span class="dot"></span> LIVE
     <span id="liveTime">--:--:--</span>
-    <span>Admin v2.0</span>
   </div>
 </nav>
 
 <div class="layout">
 
-  <!-- Stats Row -->
+  <!-- Stats -->
   <div class="stats">
-    <div class="stat c-orange"><div class="stat-val" id="sTotal">—</div><div class="stat-lbl">Total Alerts</div></div>
-    <div class="stat c-red">   <div class="stat-val" id="sActive">—</div><div class="stat-lbl">Active</div></div>
-    <div class="stat c-green"> <div class="stat-val" id="sResolved">—</div><div class="stat-lbl">Resolved</div></div>
-    <div class="stat c-cyan">  <div class="stat-val" id="sUsers">—</div><div class="stat-lbl">Users</div></div>
-    <div class="stat c-yellow"><div class="stat-val" id="sButton">—</div><div class="stat-lbl">SOS Button</div></div>
-    <div class="stat c-blue">  <div class="stat-val" id="sFall">—</div><div class="stat-lbl">Fall Detect</div></div>
+    <div class="stat c-o"><div class="stat-val" id="sTotal">—</div><div class="stat-lbl">Total</div></div>
+    <div class="stat c-r"><div class="stat-val" id="sActive">—</div><div class="stat-lbl">Active</div></div>
+    <div class="stat c-g"><div class="stat-val" id="sResolved">—</div><div class="stat-lbl">Resolved</div></div>
+    <div class="stat c-c"><div class="stat-val" id="sUsers">—</div><div class="stat-lbl">Users</div></div>
+    <div class="stat c-y"><div class="stat-val" id="sButton">—</div><div class="stat-lbl">SOS Button</div></div>
+    <div class="stat c-p"><div class="stat-val" id="sAudio">—</div><div class="stat-lbl">With Audio</div></div>
   </div>
 
-  <!-- Left Panel -->
+  <!-- Left panel -->
   <div class="left-panel">
 
-    <!-- Alert List -->
+    <!-- GPS live status -->
+    <div class="gps-panel" id="gpsPanelWrap">
+      <div class="gps-title">📡 GPS Module Status</div>
+      <div class="gps-coords" id="gpsLiveCoords">Waiting for wearable GPS signal...</div>
+    </div>
+
+    <!-- Alert list -->
     <div class="card">
       <div class="card-hdr">
         <span class="card-title">🚨 Active Alerts</span>
         <button class="btn-sm" onclick="loadAll()">⟳ Refresh</button>
       </div>
       <div class="alert-scroll" id="alertList">
-        <div class="empty">Connecting to Supabase…</div>
+        <div class="empty">Connecting...</div>
       </div>
     </div>
 
-    <!-- Alert Detail -->
+    <!-- Alert detail -->
     <div class="card" id="detailCard" style="display:none">
       <div class="card-hdr">
         <span class="card-title">📋 Alert Detail</span>
-        <button class="btn-sm" onclick="closeDetail()">✕ Close</button>
+        <button class="btn-sm" onclick="closeDetail()">✕</button>
       </div>
       <div class="detail-body" id="detailBody"></div>
     </div>
 
   </div>
 
-  <!-- Right Panel -->
+  <!-- Right panel -->
   <div class="right-panel">
 
     <!-- Map -->
     <div class="card">
       <div class="card-hdr">
         <span class="card-title">🗺 Live Location Map</span>
-        <span style="font-size:11px;color:var(--muted)">OpenStreetMap · No API Key</span>
+        <span style="font-size:10px;color:var(--muted)">OpenStreetMap</span>
       </div>
       <div id="map"></div>
     </div>
 
     <!-- CCTV -->
     <div class="card">
-      <div class="card-hdr">
-        <span class="card-title">📷 CCTV Feed (Webcam)</span>
-      </div>
+      <div class="card-hdr"><span class="card-title">📷 CCTV Feed</span></div>
       <div class="cctv-wrap" id="cctvBox">
         <div class="cctv-off" id="cctvOff">📷 Camera offline — click Start Camera</div>
         <video id="cctvVideo" autoplay muted playsinline style="display:none"></video>
         <div class="cctv-hud" id="cctvHud" style="display:none">
           <div class="rec-label"><span class="dot"></span> REC</div>
-          <div class="cctv-ts" id="cctvTs">--:--:--</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.7)" id="cctvTs">--:--:--</div>
         </div>
       </div>
       <div class="cctv-btns">
         <button class="cctv-btn" id="btnStart"  onclick="startCam()">▶ Start Camera</button>
-        <button class="cctv-btn" id="btnStop"   onclick="stopCam()">⏹ Stop</button>
+        <button class="cctv-btn" id="btnStop"   onclick="stopCam()"  style="display:none">⏹ Stop</button>
         <button class="cctv-btn"                onclick="snap()">📸 Snapshot</button>
         <button class="cctv-btn"                onclick="goFullscreen()">⛶ Fullscreen</button>
       </div>
     </div>
 
-    <!-- Direct Wearable Connection -->
+    <!-- Direct Wearable + Audio level -->
     <div class="card">
       <div class="card-hdr">
         <span class="card-title">📡 Direct Wearable Link</span>
-        <span style="font-size:11px;color:var(--muted)">Bypasses Android app</span>
+        <span style="font-size:10px;color:var(--muted)">Bypasses Android app</span>
       </div>
-      <div style="padding:14px">
-        <div class="dw-row"><span class="dw-key">Laptop GPS</span><span class="dw-val" id="laptopGPS">Not fetched yet</span></div>
+      <div style="padding:12px">
+        <div class="dw-row"><span class="dw-key">Laptop GPS</span><span class="dw-val" id="laptopGPS">Not fetched</span></div>
         <div class="dw-row"><span class="dw-key">Wearable BT</span><span class="dw-val" id="wearableStatus">Not connected</span></div>
-        <div class="dw-row"><span class="dw-key">Last BT signal</span><span class="dw-val" id="lastDirectSignal">—</span></div>
-        <div class="dw-row"><span class="dw-key">Active user</span><span class="dw-val" id="directUserId">—</span></div>
+        <div class="dw-row"><span class="dw-key">Last signal</span><span class="dw-val" id="lastSignal">—</span></div>
+        <div class="dw-row"><span class="dw-key">GPS module</span><span class="dw-val" id="gpsModuleStatus">Inactive</span></div>
         <div class="dw-btns">
-          <button class="dw-btn" onclick="getLaptopGPS()">📍 Get GPS</button>
-          <button class="dw-btn" id="btnWearableConnect" onclick="connectWearableBT()">🔗 Connect BT</button>
+          <button class="dw-btn" onclick="getLaptopGPS()">📍 GPS</button>
+          <button class="dw-btn" id="btnWearable" onclick="connectWearableBT()">🔗 Connect BT</button>
         </div>
-        <button class="dw-sos" onclick="sendDirectSOS('SOS_BUTTON')">🆘 Manual SOS from Dashboard</button>
-        <div class="dw-log" id="directLog">Waiting for wearable connection…</div>
+        <button class="dw-sos" onclick="sendDirectSOS('SOS_BUTTON')">🆘 Manual SOS</button>
+
+        <!-- Live audio level meter -->
+        <div class="live-audio" id="liveAudioPanel" style="display:none">
+          <div class="live-audio-title">🎙 Live Audio Level (from wearable)</div>
+          <div class="level-bar-wrap"><div class="level-bar" id="levelBar"></div></div>
+          <div class="level-label" id="levelLabel">Level: 0</div>
+        </div>
+
+        <div class="dw-log" id="directLog">Waiting for wearable...</div>
       </div>
     </div>
 
@@ -266,30 +250,21 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 <div id="toast"></div>
 <canvas id="snapCanvas" style="display:none"></canvas>
 
-<!-- Supabase JS SDK -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <script>
-// ============================================================
-//  SUPABASE CLIENT
-// ============================================================
+// ── Supabase ──────────────────────────────────────────────
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// ============================================================
-//  STATE
-// ============================================================
-let allAlerts  = [];
-let selectedId = null;
-let mapObj     = null;
-let markers    = [];
-let camStream  = null;
+// ── State ─────────────────────────────────────────────────
+let allAlerts   = [];
+let selectedId  = null;
+let mapObj      = null;
+let markers     = [];
+let camStream   = null;
 
-// ============================================================
-//  CLOCK
-// ============================================================
+// ── Clock ─────────────────────────────────────────────────
 setInterval(() => {
   const t = new Date().toLocaleTimeString();
   document.getElementById("liveTime").textContent = t;
@@ -297,111 +272,90 @@ setInterval(() => {
   if (ts) ts.textContent = t;
 }, 1000);
 
-// ============================================================
-//  BACKEND HEALTH CHECK
-// ============================================================
+// ── Backend health ────────────────────────────────────────
 async function checkBackend() {
   const pill  = document.getElementById("backendPill");
   const label = document.getElementById("backendStatus");
   try {
-    const res = await fetch(`${BACKEND_URL}/`, { signal: AbortSignal.timeout(8000) });
-    if (res.ok) {
-      pill.className    = "pill ok";
-      label.textContent = "Render ✓";
-    } else throw new Error();
+    const res = await fetch(`${BACKEND_URL}/`, { signal:AbortSignal.timeout(8000) });
+    if (res.ok) { pill.className="pill ok"; label.textContent="Render ✓"; }
+    else throw new Error();
   } catch {
-    pill.className    = "pill err";
-    label.textContent = "Render offline";
-    document.getElementById("renderBanner").style.display = "block";
-    setTimeout(() => document.getElementById("renderBanner").style.display = "none", 20000);
+    pill.className="pill err"; label.textContent="Render offline";
   }
 }
 
-// ============================================================
-//  MAP
-// ============================================================
+// ── Map ───────────────────────────────────────────────────
 function initMap() {
   mapObj = L.map("map").setView([22.5726, 88.3639], 12);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    attribution: "© OpenStreetMap contributors", maxZoom: 19
+    attribution:"© OpenStreetMap contributors", maxZoom:19
   }).addTo(mapObj);
 }
 
 function refreshMarkers() {
   markers.forEach(m => mapObj.removeLayer(m));
   markers = [];
-  allAlerts
-    .filter(a => a.status === "active" && a.latitude && a.longitude)
-    .forEach(a => {
-      const isFall = a.alert_type === "SOS_FALL";
-      const icon = L.divIcon({
-        className: "",
-        html: `<div style="background:${isFall?"#ffea00":"#ff1744"};border:2px solid #fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#000;box-shadow:0 0 10px ${isFall?"rgba(255,234,0,.7)":"rgba(255,23,68,.7)"}">!</div>`,
-        iconSize:[22,22],iconAnchor:[11,11]
-      });
-      const m = L.marker([a.latitude, a.longitude], { icon })
-        .addTo(mapObj)
-        .bindPopup(`<b>${a.name||a.user_id}</b><br/>📍 ${a.latitude.toFixed(5)}, ${a.longitude.toFixed(5)}<br/>🚨 ${a.alert_type}<br/>🕐 ${new Date(a.timestamp).toLocaleString()}`);
-      m.on("click", () => selectAlert(a.id));
-      markers.push(m);
+  allAlerts.filter(a => a.status==="active" && a.latitude && a.longitude).forEach(a => {
+    const isFall  = a.alert_type === "SOS_FALL";
+    const hasAudio = !!a.audio_url;
+    const icon = L.divIcon({
+      className:"",
+      html:`<div style="background:${isFall?"#ffea00":"#ff1744"};border:2px solid #fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 10px ${isFall?"rgba(255,234,0,.7)":"rgba(255,23,68,.7)"};">${hasAudio?"🎙":"!"}</div>`,
+      iconSize:[24,24],iconAnchor:[12,12]
     });
-  if (markers.length)
-    mapObj.fitBounds(L.featureGroup(markers).getBounds().pad(0.3));
+    const m = L.marker([a.latitude, a.longitude],{icon}).addTo(mapObj)
+      .bindPopup(`<b>${a.name||a.user_id}</b><br/>📍 ${a.latitude?.toFixed(5)}, ${a.longitude?.toFixed(5)}<br/>🚨 ${a.alert_type}${hasAudio?"<br/>🎙 Audio available":""}`);
+    m.on("click",()=>selectAlert(a.id));
+    markers.push(m);
+  });
+  if (markers.length) mapObj.fitBounds(L.featureGroup(markers).getBounds().pad(0.3));
 }
 
-function flyTo(lat, lng) { mapObj.flyTo([lat, lng], 16, { duration: 1 }); }
-
-// ============================================================
-//  DATA — READ from Supabase directly
-// ============================================================
+// ── Load all data ─────────────────────────────────────────
 async function loadAll() {
   try {
-    const { data, error } = await db
-      .from("alerts")
-      .select(`*, users(name, phone, emergency_contact, emergency_phone, address)`)
-      .order("timestamp", { ascending: false });
+    const { data, error } = await db.from("alerts")
+      .select("*, users(name,phone,emergency_contact,emergency_phone,address)")
+      .order("timestamp", { ascending:false });
     if (error) throw error;
-    allAlerts = (data || []).map(row => {
-      const flat = { ...row };
+    allAlerts = (data||[]).map(row => {
+      const flat = {...row};
       if (flat.users) { Object.assign(flat, flat.users); delete flat.users; }
       return flat;
     });
     renderList();
     refreshMarkers();
     loadStats();
-    document.getElementById("connBanner").style.display = "none";
   } catch (err) {
-    console.error(err);
-    document.getElementById("alertList").innerHTML = `<div class="empty">⚠ Supabase error: ${err.message}</div>`;
-    document.getElementById("connBanner").style.display = "block";
+    document.getElementById("alertList").innerHTML = `<div class="empty">⚠ ${err.message}</div>`;
   }
 }
 
 async function loadStats() {
-  const { data: alertData } = await db.from("alerts").select("status, alert_type");
-  const { count } = await db.from("users").select("*", { count: "exact", head: true });
-  const rows = alertData || [];
+  const { data } = await db.from("alerts").select("status,alert_type,audio_url");
+  const { count } = await db.from("users").select("*",{count:"exact",head:true});
+  const rows = data||[];
   document.getElementById("sTotal").textContent    = rows.length;
-  document.getElementById("sActive").textContent   = rows.filter(r => r.status     === "active").length;
-  document.getElementById("sResolved").textContent = rows.filter(r => r.status     === "resolved").length;
-  document.getElementById("sUsers").textContent    = count ?? "—";
-  document.getElementById("sButton").textContent   = rows.filter(r => r.alert_type === "SOS_BUTTON").length;
-  document.getElementById("sFall").textContent     = rows.filter(r => r.alert_type === "SOS_FALL").length;
+  document.getElementById("sActive").textContent   = rows.filter(r=>r.status==="active").length;
+  document.getElementById("sResolved").textContent = rows.filter(r=>r.status==="resolved").length;
+  document.getElementById("sUsers").textContent    = count??"—";
+  document.getElementById("sButton").textContent   = rows.filter(r=>r.alert_type==="SOS_BUTTON").length;
+  document.getElementById("sAudio").textContent    = rows.filter(r=>r.audio_url).length;
 }
 
-// ============================================================
-//  RENDER ALERT LIST
-// ============================================================
+// ── Render alert list ─────────────────────────────────────
 function renderList() {
   const el     = document.getElementById("alertList");
-  const active = allAlerts.filter(a => a.status === "active");
-  if (!active.length) { el.innerHTML = `<div class="empty">✅ No active alerts right now</div>`; return; }
+  const active = allAlerts.filter(a => a.status==="active");
+  if (!active.length) { el.innerHTML=`<div class="empty">✅ No active alerts</div>`; return; }
   el.innerHTML = active.map(a => `
     <div class="a-item ${a.id===selectedId?"sel":""}" onclick="selectAlert('${a.id}')">
       <div class="a-top">
         <span class="a-name">👤 ${a.name||a.user_id}</span>
-        <span class="badge ${a.alert_type==="SOS_FALL"?"b-fall":"b-btn"}">
-          ${a.alert_type==="SOS_FALL"?"🤸 FALL":"🆘 BUTTON"}
+        <span style="display:flex;gap:4px;flex-wrap:wrap">
+          <span class="badge ${a.alert_type==="SOS_FALL"?"b-fall":"b-btn"}">${a.alert_type==="SOS_FALL"?"🤸 FALL":"🆘 BUTTON"}</span>
+          ${a.audio_url?`<span class="badge b-audio">🎙 AUDIO</span>`:""}
         </span>
       </div>
       <div class="a-time">🕐 ${new Date(a.timestamp).toLocaleString()}</div>
@@ -409,310 +363,326 @@ function renderList() {
     </div>`).join("");
 }
 
-// ============================================================
-//  ALERT DETAIL
-// ============================================================
+// ── Alert detail with AUDIO PLAYER ───────────────────────
 function selectAlert(id) {
   selectedId = id;
   renderList();
-  const a = allAlerts.find(x => x.id === id);
+  const a = allAlerts.find(x => x.id===id);
   if (!a) return;
-  const resolved = a.status === "resolved";
-  document.getElementById("detailCard").style.display = "block";
+  const resolved = a.status==="resolved";
+
+  // Build audio section
+  const audioSection = a.audio_url
+    ? `<div class="audio-section">
+         <div class="audio-title">🎙 Recorded Audio</div>
+         <audio class="audio-player" controls>
+           <source src="${a.audio_url}" type="audio/aac">
+           <source src="${a.audio_url}" type="audio/mpeg">
+           Your browser does not support the audio element.
+         </audio>
+         <div style="margin-top:6px;display:flex;gap:8px">
+           <a href="${a.audio_url}" download="phoenix_sakhi_audio.aac"
+              style="flex:1;padding:6px;background:rgba(170,68,255,.15);border:1px solid rgba(170,68,255,.4);
+                     border-radius:6px;color:var(--purple);font-size:12px;font-weight:600;text-align:center;text-decoration:none">
+             ⬇ Download Audio
+           </a>
+         </div>
+       </div>`
+    : `<div class="audio-section"><div class="no-audio">No audio recording for this alert</div></div>`;
+
+  document.getElementById("detailCard").style.display="block";
   document.getElementById("detailBody").innerHTML = `
     <div class="d-row"><span class="d-key">Name</span>              <span class="d-val">${a.name||"—"}</span></div>
     <div class="d-row"><span class="d-key">Phone</span>             <span class="d-val">${a.phone||"—"}</span></div>
-    <div class="d-row"><span class="d-key">Emergency Contact</span> <span class="d-val">${a.emergency_contact||"—"}</span></div>
-    <div class="d-row"><span class="d-key">Emergency Phone</span>   <span class="d-val">${a.emergency_phone||"—"}</span></div>
-    <div class="d-row"><span class="d-key">Address</span>           <span class="d-val">${a.address||"—"}</span></div>
-    <div class="d-row"><span class="d-key">Alert Type</span>        <span class="d-val">${a.alert_type}</span></div>
+    <div class="d-row"><span class="d-key">Emergency</span>         <span class="d-val">${a.emergency_contact||"—"}</span></div>
+    <div class="d-row"><span class="d-key">Alert type</span>        <span class="d-val">${a.alert_type}</span></div>
     <div class="d-row"><span class="d-key">Coordinates</span>       <span class="d-val">${a.latitude?.toFixed(5)}, ${a.longitude?.toFixed(5)}</span></div>
     <div class="d-row"><span class="d-key">Time</span>              <span class="d-val">${new Date(a.timestamp).toLocaleString()}</span></div>
     <div class="d-row"><span class="d-key">Status</span>
       <span class="d-val"><span class="badge ${resolved?"b-res":"b-act"}">${resolved?"✅ Resolved":"🔴 Active"}</span></span>
     </div>
+    ${audioSection}
     <div class="action-row">
       <button class="resolve-btn" id="resBtn" onclick="doResolve('${a.id}')" ${resolved?"disabled":""}>
         ${resolved?"✅ Resolved":"✔ Mark Resolved"}
       </button>
-      <button class="delete-btn" id="delBtn" onclick="doDelete('${a.id}')">🗑 Delete</button>
+      <button class="delete-btn" onclick="doDelete('${a.id}')">🗑</button>
     </div>
-    <a class="osm-link"
-       href="https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=16/${a.latitude}/${a.longitude}"
-       target="_blank">🗺 Open in OpenStreetMap ↗</a>`;
+    <a class="osm-link" href="https://www.openstreetmap.org/?mlat=${a.latitude}&mlon=${a.longitude}#map=16/${a.latitude}/${a.longitude}" target="_blank">
+      🗺 Open in OpenStreetMap ↗
+    </a>`;
+
   if (a.latitude && a.longitude) {
-    flyTo(a.latitude, a.longitude);
-    const m = markers.find(mk =>
-      Math.abs(mk.getLatLng().lat - a.latitude) < 0.00001 &&
-      Math.abs(mk.getLatLng().lng - a.longitude) < 0.00001);
-    if (m) m.openPopup();
+    mapObj.flyTo([a.latitude, a.longitude], 16, { duration:1 });
   }
 }
 
 function closeDetail() {
   selectedId = null;
-  document.getElementById("detailCard").style.display = "none";
+  document.getElementById("detailCard").style.display="none";
   renderList();
 }
 
-// ============================================================
-//  WRITE via Render Backend
-// ============================================================
+// ── Write operations ──────────────────────────────────────
 async function doResolve(id) {
   const btn = document.getElementById("resBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Resolving…"; }
+  if (btn) { btn.disabled=true; btn.textContent="Resolving..."; }
   try {
-    const res = await fetch(`${BACKEND_URL}/alerts/${id}/resolve`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ notes: "Resolved by Phoenix-SAKHI admin dashboard" }),
-      signal: AbortSignal.timeout(15000)
+    await fetch(`${BACKEND_URL}/alerts/${id}/resolve`,{
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({notes:"Resolved via admin dashboard"}),
+      signal:AbortSignal.timeout(15000)
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    toast("✅ Alert resolved via backend");
-    await loadAll();
-    closeDetail();
-  } catch (err) {
-    toast("❌ Resolve failed: " + err.message, "red");
-    if (btn) { btn.disabled = false; btn.textContent = "✔ Mark Resolved"; }
-    if (err.message.includes("Failed to fetch") || err.message.includes("timeout")) {
-      document.getElementById("renderBanner").style.display = "block";
-      setTimeout(() => document.getElementById("renderBanner").style.display = "none", 20000);
-    }
-  }
+    toast("✅ Alert resolved");
+    await loadAll(); closeDetail();
+  } catch(e) { toast("❌ "+e.message,"red"); }
 }
 
 async function doDelete(id) {
-  if (!confirm("Permanently delete this alert?")) return;
-  const btn = document.getElementById("delBtn");
-  if (btn) { btn.disabled = true; btn.textContent = "Deleting…"; }
+  if (!confirm("Delete this alert?")) return;
   try {
-    const res = await fetch(`${BACKEND_URL}/alerts/${id}`, {
-      method: "DELETE", signal: AbortSignal.timeout(15000)
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    await fetch(`${BACKEND_URL}/alerts/${id}`,{method:"DELETE",signal:AbortSignal.timeout(15000)});
     toast("🗑 Alert deleted");
-    await loadAll();
-    closeDetail();
-  } catch (err) {
-    toast("❌ Delete failed: " + err.message, "red");
-    if (btn) { btn.disabled = false; btn.textContent = "🗑 Delete"; }
-    if (err.message.includes("Failed to fetch") || err.message.includes("timeout")) {
-      document.getElementById("renderBanner").style.display = "block";
-      setTimeout(() => document.getElementById("renderBanner").style.display = "none", 20000);
-    }
-  }
+    await loadAll(); closeDetail();
+  } catch(e) { toast("❌ "+e.message,"red"); }
 }
 
-// ============================================================
-//  SUPABASE REALTIME
-// ============================================================
+// ── Realtime ──────────────────────────────────────────────
 function subscribeRealtime() {
-  db.channel("phoenix-sakhi-alerts")
-    .on("postgres_changes", { event: "*", schema: "public", table: "alerts" },
-      payload => {
-        if (payload.eventType === "INSERT") toast("🚨 New SOS Alert received!", "red");
-        loadAll();
-      })
+  db.channel("phoenix-sakhi-v2")
+    .on("postgres_changes",{event:"*",schema:"public",table:"alerts"}, payload => {
+      if (payload.eventType==="INSERT") {
+        toast("🚨 New SOS Alert!","red");
+        // Check if new alert has audio after a short delay
+        if (payload.new?.audio_url) toast("🎙 Audio recording attached!","purple");
+      }
+      loadAll();
+    })
     .subscribe();
 }
 
-// ============================================================
-//  WEBCAM / CCTV
-// ============================================================
+// ── CCTV ──────────────────────────────────────────────────
 async function startCam() {
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    camStream = await navigator.mediaDevices.getUserMedia({video:true,audio:false});
     const v = document.getElementById("cctvVideo");
-    v.srcObject = camStream; v.style.display = "block";
-    document.getElementById("cctvOff").style.display  = "none";
-    document.getElementById("cctvHud").style.display  = "flex";
-    document.getElementById("btnStart").style.display = "none";
-    document.getElementById("btnStop").style.display  = "block";
+    v.srcObject = camStream; v.style.display="block";
+    document.getElementById("cctvOff").style.display="none";
+    document.getElementById("cctvHud").style.display="flex";
+    document.getElementById("btnStart").style.display="none";
+    document.getElementById("btnStop").style.display="block";
     toast("📷 Camera started");
-  } catch (e) { toast("❌ Camera: " + e.message, "red"); }
+  } catch(e) { toast("❌ Camera: "+e.message,"red"); }
 }
-
 function stopCam() {
   if (!camStream) return;
-  camStream.getTracks().forEach(t => t.stop());
-  camStream = null;
+  camStream.getTracks().forEach(t=>t.stop()); camStream=null;
   const v = document.getElementById("cctvVideo");
-  v.srcObject = null; v.style.display = "none";
-  document.getElementById("cctvOff").style.display  = "flex";
-  document.getElementById("cctvHud").style.display  = "none";
-  document.getElementById("btnStart").style.display = "block";
-  document.getElementById("btnStop").style.display  = "none";
-  toast("⏹ Camera stopped");
+  v.srcObject=null; v.style.display="none";
+  document.getElementById("cctvOff").style.display="flex";
+  document.getElementById("cctvHud").style.display="none";
+  document.getElementById("btnStart").style.display="block";
+  document.getElementById("btnStop").style.display="none";
 }
-
 function snap() {
   const v = document.getElementById("cctvVideo");
-  if (!camStream || v.readyState < 2) { toast("⚠ Camera not running", "yellow"); return; }
+  if (!camStream || v.readyState<2) { toast("⚠ Camera not running","yellow"); return; }
   const c = document.getElementById("snapCanvas");
-  c.width = v.videoWidth; c.height = v.videoHeight;
-  c.getContext("2d").drawImage(v, 0, 0);
-  const a = document.createElement("a");
-  a.download = `phoenix_sakhi_snap_${Date.now()}.png`;
-  a.href = c.toDataURL("image/png");
-  a.click();
+  c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0);
+  const a=document.createElement("a");
+  a.download=`sakhi_snap_${Date.now()}.png`;
+  a.href=c.toDataURL("image/png"); a.click();
   toast("📸 Snapshot saved");
 }
-
 function goFullscreen() {
   const box = document.getElementById("cctvBox");
-  if (!document.fullscreenElement) box.requestFullscreen().catch(e => toast("⚠ " + e.message, "yellow"));
+  if (!document.fullscreenElement) box.requestFullscreen().catch(()=>{});
   else document.exitFullscreen();
 }
 
-// ============================================================
-//  DIRECT WEARABLE → ADMIN DASHBOARD (Web Bluetooth + Laptop GPS)
-// ============================================================
-let laptopLat = null;
-let laptopLng = null;
-let wearableBTDevice = null;
-let wearableBTChar   = null;
+// ═══════════════════════════════════════════════════════════
+//  DIRECT WEARABLE BLUETOOTH + GPS
+// ═══════════════════════════════════════════════════════════
+let laptopLat=null, laptopLng=null;
+let wearableBTDevice=null, wearableBTChar=null;
 
 function getLaptopGPS() {
   if (!navigator.geolocation) { directLog("❌ Geolocation not supported"); return; }
-  directLog("📍 Requesting laptop GPS…");
+  directLog("📍 Getting laptop GPS...");
   navigator.geolocation.getCurrentPosition(
     pos => {
-      laptopLat = pos.coords.latitude;
-      laptopLng = pos.coords.longitude;
-      const acc = Math.round(pos.coords.accuracy);
-      document.getElementById("laptopGPS").textContent =
-        `${laptopLat.toFixed(5)}, ${laptopLng.toFixed(5)} (±${acc}m)`;
-      directLog(`✅ GPS locked: ${laptopLat.toFixed(4)}, ${laptopLng.toFixed(4)}`);
+      laptopLat=pos.coords.latitude; laptopLng=pos.coords.longitude;
+      document.getElementById("laptopGPS").textContent=`${laptopLat.toFixed(5)}, ${laptopLng.toFixed(5)}`;
+      directLog(`✅ Laptop GPS: ${laptopLat.toFixed(4)}, ${laptopLng.toFixed(4)}`);
     },
     err => {
-      laptopLat = 22.5726; laptopLng = 88.3639;
-      document.getElementById("laptopGPS").textContent = "22.57260, 88.36390 (Kolkata fallback)";
-      directLog("⚠ GPS error — using Kolkata fallback: " + err.message);
+      laptopLat=22.5726; laptopLng=88.3639;
+      document.getElementById("laptopGPS").textContent="22.57260, 88.36390 (fallback)";
+      directLog("⚠ GPS error — using Kolkata fallback");
     },
-    { enableHighAccuracy: true, timeout: 10000 }
+    { enableHighAccuracy:true, timeout:10000 }
   );
 }
 
 async function connectWearableBT() {
   if (!navigator.bluetooth) {
-    directLog("❌ Web Bluetooth not supported — use Chrome on desktop/Android");
-    document.getElementById("wearableStatus").textContent = "Web BT not available";
-    updateWearablePill(false);
+    directLog("❌ Web Bluetooth requires Chrome on desktop");
+    document.getElementById("wearableStatus").textContent="Web BT not available";
     return;
   }
   try {
-    directLog("🔍 Scanning for HC-05…");
-    document.getElementById("wearableStatus").textContent = "Scanning…";
+    directLog("🔍 Scanning for HC-05...");
     wearableBTDevice = await navigator.bluetooth.requestDevice({
-      filters: [{ name: "HC-05" }],
-      optionalServices: ["0000ffe0-0000-1000-8000-00805f9b34fb"]
+      filters:[{name:"HC-05"}],
+      optionalServices:["0000ffe0-0000-1000-8000-00805f9b34fb"]
     });
-    directLog("🔗 Found: " + wearableBTDevice.name);
     const server  = await wearableBTDevice.gatt.connect();
     const service = await server.getPrimaryService("0000ffe0-0000-1000-8000-00805f9b34fb");
     wearableBTChar = await service.getCharacteristic("0000ffe1-0000-1000-8000-00805f9b34fb");
     await wearableBTChar.startNotifications();
     wearableBTChar.addEventListener("characteristicvaluechanged", onWearableSignal);
-    document.getElementById("wearableStatus").textContent = "✅ Connected to HC-05";
-    document.getElementById("directUserId").textContent   = DIRECT_USER_ID;
-    document.getElementById("btnWearableConnect").textContent = "Reconnect";
-    updateWearablePill(true);
-    directLog("✅ Wearable live! Listening for SOS signals…");
-    wearableBTDevice.addEventListener("gattserverdisconnected", () => {
+
+    document.getElementById("wearableStatus").textContent="✅ Connected to HC-05";
+    document.getElementById("btnWearable").textContent="Reconnect";
+    const p = document.getElementById("wearablePill");
+    p.className="pill ok";
+    document.getElementById("wearablePillTxt").textContent="Wearable live";
+    directLog("✅ Wearable connected! Listening for signals...");
+
+    wearableBTDevice.addEventListener("gattserverdisconnected",()=>{
       directLog("⚠ Wearable disconnected");
-      document.getElementById("wearableStatus").textContent = "Disconnected";
-      updateWearablePill(false);
+      document.getElementById("wearableStatus").textContent="Disconnected";
+      document.getElementById("wearablePill").className="pill err";
+      document.getElementById("wearablePillTxt").textContent="Wearable offline";
     });
-  } catch (err) {
-    directLog("❌ BT error: " + err.message);
-    document.getElementById("wearableStatus").textContent = "Failed: " + err.message;
-    updateWearablePill(false);
+  } catch(e) {
+    directLog("❌ BT error: "+e.message);
+    document.getElementById("wearableStatus").textContent="Failed: "+e.message;
   }
 }
 
-function updateWearablePill(online) {
-  const pill  = document.getElementById("wearablePill");
-  const label = document.getElementById("wearablePillText");
-  pill.className    = "pill " + (online ? "ok" : "err");
-  label.textContent = online ? "Wearable live" : "Wearable offline";
-}
-
+// ── Parse all BT signals from wearable ───────────────────
 function onWearableSignal(event) {
-  const signal = new TextDecoder().decode(event.target.value).trim();
-  directLog("📡 Signal: " + signal);
-  document.getElementById("lastDirectSignal").textContent =
-    signal + " @ " + new Date().toLocaleTimeString();
-  if (signal.includes("SOS_BUTTON")) {
-    toast("🚨 SOS_BUTTON from wearable!", "red");
+  const msg = new TextDecoder().decode(event.target.value).trim();
+  directLog("📡 " + msg);
+  document.getElementById("lastSignal").textContent = msg + " @ " + new Date().toLocaleTimeString();
+
+  // GPS activated
+  if (msg === "GPS_ACTIVATED") {
+    document.getElementById("gpsModuleStatus").textContent = "✅ ACTIVE — acquiring fix";
+    document.getElementById("gpsLiveCoords").textContent = "GPS module activated — waiting for satellite fix...";
+    toast("📡 GPS Module activated on wearable");
+  }
+
+  // GPS fix broadcast
+  else if (msg.startsWith("GPS_FIX,")) {
+    const parts = msg.replace("GPS_FIX,","").split(",");
+    if (parts.length >= 2) {
+      const lat = parseFloat(parts[0]), lng = parseFloat(parts[1]);
+      laptopLat = lat; laptopLng = lng;
+      document.getElementById("gpsLiveCoords").textContent = `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+      document.getElementById("gpsModuleStatus").textContent = "✅ Fix acquired";
+      mapObj.flyTo([lat, lng], 16, {duration:1});
+      // Add live GPS marker
+      if (window._gpsLiveMarker) mapObj.removeLayer(window._gpsLiveMarker);
+      window._gpsLiveMarker = L.circleMarker([lat, lng], {
+        radius:10, color:"#00e676", fillColor:"#00e676", fillOpacity:0.3, weight:2
+      }).addTo(mapObj).bindPopup("📡 Live GPS from wearable");
+    }
+  }
+
+  // SOS with GPS
+  else if (msg.startsWith("SOS_GPS,")) {
+    const parts = msg.replace("SOS_GPS,","").split(",");
+    if (parts.length >= 2) { laptopLat=parseFloat(parts[0]); laptopLng=parseFloat(parts[1]); }
+    toast("🚨 SOS received from wearable!","red");
     sendDirectSOS("SOS_BUTTON");
-  } else if (signal.includes("SOS_FALL")) {
-    toast("🚨 SOS_FALL from wearable!", "red");
+  }
+
+  // Fall with GPS
+  else if (msg.startsWith("SOS_FALL_GPS,")) {
+    const parts = msg.replace("SOS_FALL_GPS,","").split(",");
+    if (parts.length >= 2) { laptopLat=parseFloat(parts[0]); laptopLng=parseFloat(parts[1]); }
+    toast("🚨 Fall detected with GPS!","red");
     sendDirectSOS("SOS_FALL");
   }
+
+  // Legacy
+  else if (msg.includes("SOS_FALL"))   { toast("🚨 Fall detected!","red"); sendDirectSOS("SOS_FALL"); }
+  else if (msg.includes("SOS_BUTTON")) { toast("🚨 SOS pressed!","red"); sendDirectSOS("SOS_BUTTON"); }
+
+  // Audio start
+  else if (msg === "AUDIO_START") {
+    document.getElementById("liveAudioPanel").style.display="block";
+    document.getElementById("audioPill").style.display="flex";
+    toast("🎙 Audio recording started on wearable","purple");
+    directLog("🎙 Audio recording started");
+  }
+
+  // Live audio level
+  else if (msg.startsWith("AUDIO_LVL:")) {
+    const level = parseInt(msg.replace("AUDIO_LVL:","")) || 0;
+    const pct = Math.min(100, Math.round(level / 32 * 100));
+    document.getElementById("levelBar").style.width   = pct + "%";
+    document.getElementById("levelLabel").textContent = `Level: ${pct}%`;
+  }
+
+  // Audio end
+  else if (msg === "AUDIO_END") {
+    document.getElementById("liveAudioPanel").style.display="none";
+    document.getElementById("audioPill").style.display="none";
+    toast("✅ Audio recording ended — check app for upload","green");
+    directLog("🎙 Audio recording ended");
+    // Refresh alerts to check for new audio_url
+    setTimeout(loadAll, 3000);
+  }
 }
 
+// ── Send direct SOS from dashboard ───────────────────────
 async function sendDirectSOS(alertType) {
   if (!laptopLat || !laptopLng) {
-    directLog("📍 Fetching GPS before sending…");
-    await new Promise(resolve => {
-      navigator.geolocation.getCurrentPosition(
-        pos => { laptopLat=pos.coords.latitude; laptopLng=pos.coords.longitude; resolve(); },
-        ()  => { laptopLat=22.5726; laptopLng=88.3639; resolve(); },
-        { timeout: 6000 }
-      );
-    });
+    directLog("📍 No GPS — fetching...");
+    await new Promise(r => navigator.geolocation.getCurrentPosition(
+      p => { laptopLat=p.coords.latitude; laptopLng=p.coords.longitude; r(); },
+      ()  => { laptopLat=22.5726; laptopLng=88.3639; r(); },
+      {timeout:6000}
+    ));
   }
-  directLog(`🚀 Sending ${alertType} (${laptopLat.toFixed(4)}, ${laptopLng.toFixed(4)})…`);
+  directLog(`🚀 Sending ${alertType} (${laptopLat.toFixed(4)}, ${laptopLng.toFixed(4)})...`);
   try {
-    const res = await fetch(`${BACKEND_URL}/alert`, {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        user_id:    DIRECT_USER_ID,
-        alert_type: alertType,
-        latitude:   laptopLat,
-        longitude:  laptopLng
-      }),
-      signal: AbortSignal.timeout(15000)
+    const res = await fetch(`${BACKEND_URL}/alert`,{
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({user_id:DIRECT_USER_ID,alert_type:alertType,latitude:laptopLat,longitude:laptopLng}),
+      signal:AbortSignal.timeout(15000)
     });
     if (res.ok) {
       const data = await res.json();
       directLog(`✅ Alert sent! ID: ${data.alert_id}`);
-      toast("✅ Direct SOS sent via dashboard", "green");
+      toast("✅ Direct SOS sent","green");
       await loadAll();
-    } else {
-      directLog("❌ Backend error: HTTP " + res.status);
-    }
-  } catch (err) {
-    directLog("❌ Network error: " + err.message);
-    toast("❌ Direct SOS failed", "red");
-  }
+    } else directLog("❌ HTTP " + res.status);
+  } catch(e) { directLog("❌ "+e.message); }
 }
 
 function directLog(msg) {
   const el = document.getElementById("directLog");
-  const ts = new Date().toLocaleTimeString();
-  el.innerHTML += `<div>[${ts}] ${msg}</div>`;
-  el.scrollTop  = el.scrollHeight;
+  el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
 }
 
-// ============================================================
-//  TOAST
-// ============================================================
+// ── Toast ─────────────────────────────────────────────────
 let tTimer;
-function toast(msg, color = "green") {
+function toast(msg, color="green") {
   const el = document.getElementById("toast");
   el.textContent = msg;
-  el.style.borderColor = color==="red"?"var(--red)":color==="yellow"?"var(--yellow)":"var(--green)";
+  el.style.borderColor = color==="red"?"var(--red)":color==="purple"?"var(--purple)":color==="yellow"?"var(--yellow)":"var(--green)";
   el.classList.add("show");
   clearTimeout(tTimer);
-  tTimer = setTimeout(() => el.classList.remove("show"), 3500);
+  tTimer = setTimeout(()=>el.classList.remove("show"), 3500);
 }
 
-// ============================================================
-//  INIT
-// ============================================================
+// ── Init ──────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   initMap();
   checkBackend();
@@ -720,7 +690,7 @@ document.addEventListener("DOMContentLoaded", () => {
   subscribeRealtime();
   setInterval(loadStats, 10000);
   getLaptopGPS();
-  document.getElementById("directUserId").textContent = DIRECT_USER_ID;
+  document.getElementById("directUserId" ) && (document.getElementById("directUserId").textContent=DIRECT_USER_ID);
 });
 </script>
 </body>
